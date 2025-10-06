@@ -6,8 +6,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the compiled binary from the builder
 COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
+COPY --from=seal-binary /usr/local/bin/seal-cli /usr/local/bin/seal-cli
+COPY --from=seal-binary /usr/local/bin/key-server /usr/local/bin/key-server
+COPY run.sh run.sh
 
-# Set the entrypoint
-ENTRYPOINT ["sui", "start", "--force-regenesis"]
+ENTRYPOINT ["run.sh"]
