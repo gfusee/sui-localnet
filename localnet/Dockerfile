@@ -9,5 +9,5 @@ RUN apt-get update && apt-get install -y \
 # Copy the compiled binary from the builder
 COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
 
-# Set the entrypoint
-ENTRYPOINT ["sui", "start", "--force-regenesis"]
+ENTRYPOINT ["sui", "start", "--with-faucet", "--force-regenesis"]
+
