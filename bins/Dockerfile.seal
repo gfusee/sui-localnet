@@ -14,6 +14,7 @@ RUN git checkout fix/no_move_bindings
 RUN cargo build -p seal-cli --release
 RUN cargo build -p key-server --release
 
+
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*

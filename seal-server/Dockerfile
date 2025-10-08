@@ -18,10 +18,12 @@ COPY run.sh run.sh
 COPY wait_for_localnet.sh wait_for_localnet.sh
 COPY empty_sui_config.yaml /root/.sui/sui_config/client.yaml
 COPY faucet.sh faucet.sh
+COPY deploy_seal.sh deploy_seal.sh
 
 RUN chmod +x run.sh
 RUN chmod +x wait_for_localnet.sh
 RUN chmod +x faucet.sh
+RUN chmod +x deploy_seal.sh
 
 ENTRYPOINT ["./run.sh", "http://localnet:9000"]
 # ENTRYPOINT ["/bin/bash"]
