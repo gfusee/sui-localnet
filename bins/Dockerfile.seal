@@ -19,5 +19,6 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 # Copy the seal binaries from the previous stage
+COPY --from=seal-builder /build/seal /seal
 COPY --from=seal-builder /build/seal/target/release/seal-cli /usr/local/bin/seal-cli
 COPY --from=seal-builder /build/seal/target/release/key-server /usr/local/bin/key-server

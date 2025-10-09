@@ -47,9 +47,9 @@ KEY_SERVER_OBJECT_ID="$(
     <<< "$KEY_SERVER_JSON"
 )"
 
+echo "Seal package ID: $SEAL_PACKAGE_ID"
 echo "Key server ID: $KEY_SERVER_OBJECT_ID"
 echo "Master key: $MASTER_KEY"
 
 # Run the key-server command
-MASTER_KEY="$MASTER_KEY" KEY_SERVER_OBJECT_ID="$KEY_SERVER_OBJECT_ID" key-server
-
+MASTER_KEY="$MASTER_KEY" NETWORK="custom" NODE_URL="http://localnet:9000" KEY_SERVER_OBJECT_ID="$KEY_SERVER_OBJECT_ID" key-server
