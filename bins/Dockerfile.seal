@@ -1,5 +1,5 @@
 # Stage 1: Build Seal binaries
-FROM rust:1.82 AS seal-builder
+FROM rust:1.82-bookworm AS seal-builder
 
 RUN apt-get update && apt-get install -y \
     git clang cmake libssl-dev pkg-config \

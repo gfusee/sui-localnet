@@ -1,5 +1,5 @@
 # Dockerfile.sui
-FROM rust:1.82 AS sui-builder
+FROM rust:1.82-bookworm AS sui-builder
 
 RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
 
