@@ -24,4 +24,3 @@ RUN chmod +x faucet.sh
 RUN chmod +x deploy_seal.sh
 
 ENTRYPOINT ["./run.sh", "http://localnet:9000"]
-# ENTRYPOINT ["/bin/bash"]
