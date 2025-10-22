@@ -20,6 +20,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -37,7 +40,7 @@ jobs:
           context: .
           file: bins/Dockerfile.sui
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:latest
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}
@@ -50,7 +53,7 @@ jobs:
           context: .
           file: localnet/Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           build-contexts: |
             sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary@${{ steps.build_sui_binary.outputs.digest }}
           tags: |
