@@ -1,0 +1,61 @@
+name: Publish Seal Images
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      REPOSITORY: ${{ github.repository }}
+      VERSION: ${{ github.event.release.tag_name }}
+      SUI_BINARY_REF: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push seal-binary image
+        id: build_seal_binary
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: bins/Dockerfile.seal
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:latest
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push seal-server image
+        uses: docker/build-push-action@v5
+        with:
+          context: seal-server
+          push: true
+          platforms: linux/amd64
+          build-contexts: |
+            seal-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary@${{ steps.build_seal_binary.outputs.digest }}
+            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.SUI_BINARY_REF }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:latest
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
