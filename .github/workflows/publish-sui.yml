@@ -9,19 +9,20 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  REPOSITORY: ${{ github.repository }}
+  VERSION: ${{ github.event.release.tag_name }}
+
 jobs:
-  build-and-push:
+  build-sui-binary-amd64:
     runs-on: ubuntu-latest
     env:
-      REGISTRY: ghcr.io
-      REPOSITORY: ${{ github.repository }}
-      VERSION: ${{ github.event.release.tag_name }}
+      PLATFORM: linux/amd64
+      ARCH_TAG: amd64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -33,31 +34,167 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push sui-binary image
-        id: build_sui_binary
+      - name: Build and push sui-binary image (amd64)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: bins/Dockerfile.sui
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORM }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:latest
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:latest-${{ env.ARCH_TAG }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
-      - name: Build and push sui-localnet image
+  build-sui-binary-arm64:
+    runs-on: ubuntu-24.04-arm64
+    env:
+      PLATFORM: linux/arm64
+      ARCH_TAG: arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push sui-binary image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: bins/Dockerfile.sui
+          push: true
+          platforms: ${{ env.PLATFORM }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:latest-${{ env.ARCH_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  create-sui-binary-manifest:
+    runs-on: ubuntu-latest
+    needs:
+      - build-sui-binary-amd64
+      - build-sui-binary-arm64
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for sui-binary
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }} \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:latest \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-arm64
+
+  build-sui-localnet-amd64:
+    runs-on: ubuntu-latest
+    needs:
+      - build-sui-binary-amd64
+    env:
+      PLATFORM: linux/amd64
+      ARCH_TAG: amd64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push sui-localnet image (amd64)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: localnet/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORM }}
           build-contexts: |
-            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary@${{ steps.build_sui_binary.outputs.digest }}
+            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:latest
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:latest-${{ env.ARCH_TAG }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  build-sui-localnet-arm64:
+    runs-on: ubuntu-24.04-arm64
+    needs:
+      - build-sui-binary-arm64
+    env:
+      PLATFORM: linux/arm64
+      ARCH_TAG: arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push sui-localnet image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: localnet/Dockerfile
+          push: true
+          platforms: ${{ env.PLATFORM }}
+          build-contexts: |
+            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:latest-${{ env.ARCH_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  create-sui-localnet-manifest:
+    runs-on: ubuntu-latest
+    needs:
+      - build-sui-localnet-amd64
+      - build-sui-localnet-arm64
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for sui-localnet
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }} \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:latest \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-localnet:${{ env.VERSION }}-arm64

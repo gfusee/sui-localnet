@@ -9,20 +9,20 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  REPOSITORY: ${{ github.repository }}
+  VERSION: ${{ github.event.release.tag_name }}
+
 jobs:
-  build-and-push:
+  build-seal-binary-amd64:
     runs-on: ubuntu-latest
     env:
-      REGISTRY: ghcr.io
-      REPOSITORY: ${{ github.repository }}
-      VERSION: ${{ github.event.release.tag_name }}
-      SUI_BINARY_REF: ${{ github.event.release.tag_name }}
+      PLATFORM: linux/amd64
+      ARCH_TAG: amd64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -34,31 +34,193 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push seal-binary image
-        id: build_seal_binary
+      - name: Build and push seal-binary image (amd64)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: bins/Dockerfile.seal
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORM }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:latest
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:latest-${{ env.ARCH_TAG }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
-      - name: Build and push seal-server image
+  build-seal-binary-arm64:
+    runs-on: ubuntu-24.04-arm64
+    env:
+      PLATFORM: linux/arm64
+      ARCH_TAG: arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push seal-binary image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: bins/Dockerfile.seal
+          push: true
+          platforms: ${{ env.PLATFORM }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:latest-${{ env.ARCH_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  create-seal-binary-manifest:
+    runs-on: ubuntu-latest
+    needs:
+      - build-seal-binary-amd64
+      - build-seal-binary-arm64
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for seal-binary
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }} \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:latest \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-arm64
+
+  build-seal-server-amd64:
+    runs-on: ubuntu-latest
+    needs:
+      - build-seal-binary-amd64
+    env:
+      PLATFORM: linux/amd64
+      ARCH_TAG: amd64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for matching sui-binary image (amd64)
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+        run: |
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "$IMAGE" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for $IMAGE" >&2
+          exit 1
+
+      - name: Build and push seal-server image (amd64)
         uses: docker/build-push-action@v5
         with:
           context: seal-server
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORM }}
           build-contexts: |
-            seal-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary@${{ steps.build_seal_binary.outputs.digest }}
-            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.SUI_BINARY_REF }}
+            seal-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:latest
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:latest-${{ env.ARCH_TAG }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  build-seal-server-arm64:
+    runs-on: ubuntu-24.04-arm64
+    needs:
+      - build-seal-binary-arm64
+    env:
+      PLATFORM: linux/arm64
+      ARCH_TAG: arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for matching sui-binary image (arm64)
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+        run: |
+          for attempt in {1..60}; do
+            if docker buildx imagetools inspect "$IMAGE" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for $IMAGE" >&2
+          exit 1
+
+      - name: Build and push seal-server image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: seal-server
+          push: true
+          platforms: ${{ env.PLATFORM }}
+          build-contexts: |
+            seal-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            sui-binary=docker-image://${{ env.REGISTRY }}/${{ env.REPOSITORY }}/sui-binary:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}-${{ env.ARCH_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:latest-${{ env.ARCH_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  create-seal-server-manifest:
+    runs-on: ubuntu-latest
+    needs:
+      - build-seal-server-amd64
+      - build-seal-server-arm64
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for seal-server
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }} \
+            --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:latest \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/seal-server:${{ env.VERSION }}-arm64
