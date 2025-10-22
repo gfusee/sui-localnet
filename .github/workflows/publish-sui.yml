@@ -48,7 +48,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
   build-sui-binary-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     env:
       PLATFORM: linux/arm64
       ARCH_TAG: arm64
@@ -140,7 +140,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
   build-sui-localnet-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs:
       - build-sui-binary-arm64
     env:
