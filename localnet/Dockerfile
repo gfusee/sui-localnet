@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS runner
+FROM ubuntu:24.04 AS runner
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \

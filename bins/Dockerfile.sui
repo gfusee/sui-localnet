@@ -1,5 +1,5 @@
 # Dockerfile.sui
-FROM rust:1.82-bookworm AS sui-builder
+FROM ubuntu:24.04 AS sui-builder
 
 RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
 
@@ -7,5 +7,5 @@ ENV PATH="/root/.local/bin:$PATH"
 
 RUN suiup install sui@mainnet-1.57.3 -y
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 COPY --from=sui-builder /root/.local/bin/sui /usr/local/bin/sui
