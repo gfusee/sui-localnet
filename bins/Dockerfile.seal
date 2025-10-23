@@ -14,9 +14,10 @@ RUN git checkout fix/no_move_bindings
 RUN cargo build -p seal-cli --release
 RUN cargo build -p key-server --release
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=seal-builder /build/seal/move/seal /seal/move/seal
 COPY --from=seal-builder /build/seal/target/release/seal-cli /usr/local/bin/seal-cli
 COPY --from=seal-builder /build/seal/target/release/key-server /usr/local/bin/key-server
