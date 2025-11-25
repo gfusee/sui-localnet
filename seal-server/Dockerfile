@@ -1,3 +1,8 @@
+ARG VERSION=latest
+
+FROM ghcr.io/gfusee/sui-localnet/sui-binary:${VERSION} AS sui-binary
+FROM ghcr.io/gfusee/sui-localnet/seal-binary:${VERSION} AS seal-binary
+
 FROM ubuntu:24.04 AS runner
 
 # Install runtime dependencies
