@@ -1,13 +1,16 @@
 #!/bin/sh
 
 if [ -n "$(ls -A "/localnet-config")" ]; then
+    echo "-> Running with persistent configuration"
     CMD="sui start --with-faucet --network.config=/Users/quentin/WebstormProjects/sui-poker/localnet-config"
 
     if [ -n "$WITH_GRAPHQL" ]; then
+        echo "-> Running with GraphQL"
         CMD="$CMD --with-graphql"
     fi
 
     if [ -n "$WITH_INDEXER" ]; then
+        echo "-> Running with indexer"
         CMD="$CMD --with-indexer"
     fi
 
