@@ -6,6 +6,8 @@ services:
       context: ./localnet
       dockerfile: Dockerfile
     container_name: localnet
+    volumes:
+      - ${LOCALNET_CONFIG:-}:/localnet-config
     environment:
       WITH_GRAPHQL: ${WITH_GRAPHQL}
       WITH_INDEXER: ${WITH_INDEXER}
