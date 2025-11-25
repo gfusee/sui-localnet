@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 
 RUN apt-get install postgresql-18 -y
-ENV PATH="$PATH:/usr/lib/postgresql/18/bin/initdb"
+ENV PATH="$PATH:/usr/lib/postgresql/18/bin"
 
 RUN rm -rf /var/lib/apt/lists/*
 
