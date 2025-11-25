@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: localnet
     volumes:
-      - ${LOCALNET_CONFIG:-}:/localnet-config
+      - ${LOCALNET_CONFIG:-localnet-config}:/localnet-config
     environment:
       WITH_GRAPHQL: ${WITH_GRAPHQL}
       WITH_INDEXER: ${WITH_INDEXER}
