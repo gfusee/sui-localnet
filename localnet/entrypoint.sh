@@ -2,7 +2,7 @@
 
 if [ -n "$(ls -A "/localnet-config")" ]; then
     echo "-> Running with persistent configuration"
-    CMD="sui start --with-faucet --network.config=/localnet-config"
+    CMD="RUST_LOG="off,sui_node=info" sui start --with-faucet --network.config=/localnet-config"
 
     if [ -n "$WITH_GRAPHQL" ]; then
         echo "-> Running with GraphQL"
