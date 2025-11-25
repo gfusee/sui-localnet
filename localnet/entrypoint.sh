@@ -16,5 +16,6 @@ if [ -n "$(ls -A "/localnet-config")" ]; then
 
     exec sh -c "$CMD"
 else
+    echo "-> Running with no persistence"
     exec sui start --with-faucet --force-regenesis
 fi
