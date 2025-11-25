@@ -5,9 +5,8 @@ FROM ghcr.io/gfusee/sui-localnet/sui-binary:${SUI_LOCALNET_VERSION} AS sui-binar
 FROM ubuntu:24.04 AS runner
 
 # Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
-# Not recommended for production purposes
+
 RUN useradd -m user
-RUN sudo chown -R user:user /
 USER user
 
 # Install runtime dependencies
