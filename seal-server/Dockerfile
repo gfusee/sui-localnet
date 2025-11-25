@@ -1,7 +1,7 @@
-ARG VERSION=latest
+ARG SUI_LOCALNET_VERSION=latest
 
-FROM ghcr.io/gfusee/sui-localnet/sui-binary:${VERSION} AS sui-binary
-FROM ghcr.io/gfusee/sui-localnet/seal-binary:${VERSION} AS seal-binary
+FROM ghcr.io/gfusee/sui-localnet/sui-binary:${SUI_LOCALNET_VERSION} AS sui-binary
+FROM ghcr.io/gfusee/sui-localnet/seal-binary:${SUI_LOCALNET_VERSION} AS seal-binary
 
 FROM ubuntu:24.04 AS runner
 
