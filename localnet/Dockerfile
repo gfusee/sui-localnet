@@ -8,8 +8,13 @@ FROM ubuntu:24.04 AS runner
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
-    postgresql \
-    && rm -rf /var/lib/apt/lists/*
+    postgresql-common
+
+RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+
+RUN apt-get install postgresql-18 -y
+
+RUN rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary from the builder
 COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
