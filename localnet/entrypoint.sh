@@ -2,7 +2,7 @@
 
 if [ -n "$(ls -A "/localnet-config")" ]; then
     echo "-> Running with persistent configuration"
-    CMD="sui start --with-faucet --network.config=/Users/quentin/WebstormProjects/sui-poker/localnet-config"
+    CMD="sui start --with-faucet --network.config=/localnet-config"
 
     if [ -n "$WITH_GRAPHQL" ]; then
         echo "-> Running with GraphQL"
