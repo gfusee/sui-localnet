@@ -9,7 +9,7 @@ RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.s
 
 ENV PATH="/root/.local/bin:$PATH"
 
-RUN suiup install sui@mainnet-1.59.1 -y
+RUN suiup install sui@testnet-1.61.1 -y
 
 FROM ubuntu:24.04
 COPY --from=sui-builder /root/.local/bin/sui /usr/local/bin/sui
