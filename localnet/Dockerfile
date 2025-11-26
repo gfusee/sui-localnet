@@ -8,7 +8,8 @@ FROM ubuntu:24.04 AS runner
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
-    postgresql-common
+    postgresql-common \
+    sudo
 
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 
@@ -25,6 +26,7 @@ RUN chmod +x /entrypoint.sh
 
 # Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
 RUN useradd -m user
+RUN echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN chown -R user:user /home/user
 USER user
 WORKDIR /home/user
