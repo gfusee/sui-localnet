@@ -1,7 +1,6 @@
 #!/bin/sh
 
 if [ -n "$(ls -A "/home/user/localnet-config")" ]; then
-    cd /home/user
     echo "-> Running with persistent configuration"
     CMD="RUST_LOG="off,sui_node=info" sui start --with-faucet --network.config=localnet-config"
 

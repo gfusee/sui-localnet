@@ -4,11 +4,6 @@ FROM ghcr.io/gfusee/sui-localnet/sui-binary:${SUI_LOCALNET_VERSION} AS sui-binar
 
 FROM ubuntu:24.04 AS runner
 
-# Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
-
-RUN useradd -m user
-USER user
-
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libssl3 \
@@ -27,5 +22,11 @@ COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
 COPY entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
+
+# Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
+RUN useradd -m user
+USER user
+WORKDIR /home/user
+
 
 ENTRYPOINT ["/entrypoint.sh"]
