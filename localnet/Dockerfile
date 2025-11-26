@@ -25,6 +25,7 @@ RUN chmod +x /entrypoint.sh
 
 # Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
 RUN useradd -m user
+RUN chown -R user:user /home/user
 USER user
 WORKDIR /home/user
 
