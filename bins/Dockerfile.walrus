@@ -21,8 +21,20 @@ RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.s
 
 ENV PATH="/root/.local/bin:$PATH"
 
-RUN suiup install walrus@testnet-1.63.2 -y
+RUN suiup install walrus@testnet-1.39.1 -y
+
+RUN mkdir /tmp-bin
+
+RUN cp /build/walrus/target/release/walrus /tmp-bin/walrus
+RUN cp /build/walrus/target/release/walrus-node /tmp-bin/walrus-node
+RUN cp /build/walrus/target/release/walrus-deploy /tmp-bin/walrus-deploy
+
+RUN rm -rf target && mkdir -p /build/walrus/target/release
+
+RUN cp /tmp-bin/walrus /build/walrus/target/release/walrus
+RUN cp /tmp-bin/walrus-node /build/walrus/target/release/walrus-node
+RUN cp /tmp-bin/walrus-deploy /build/walrus/target/release/walrus-deploy
 
 FROM ubuntu:24.04
 COPY --from=walrus-builder /root/.local/bin/walrus /usr/local/bin/
-COPY --from=walrus-build /build/walrus /build/walrus
+COPY --from=walrus-builder /build/walrus /build/walrus
