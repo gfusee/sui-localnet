@@ -1,6 +1,6 @@
 publish_json() {
   local dir="$1"
-  log "+ (cd $dir && sui client publish --json)"
+  echo "+ (cd $dir && sui client publish --json)"
   ( cd "$dir" && sui client publish --json ) | awk '
     BEGIN { found=0 }
     {
