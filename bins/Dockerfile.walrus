@@ -1,9 +1,21 @@
 # Dockerfile.sui
-FROM ubuntu:24.04 AS sui-builder
+FROM rust:1.82 AS walrus-builder
 
 RUN apt-get update && apt-get install -y \
-    curl \
+    git clang cmake libssl-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone https://github.com/MystenLabs/walrus.git
+WORKDIR /build/walrus
+
+# Build walrus bins
+RUN cargo build \
+    --release \
+    --bin walrus \
+    --bin walrus-node \
+    --bin walrus-deploy \
+    --features deploy
 
 RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
 
@@ -12,4 +24,5 @@ ENV PATH="/root/.local/bin:$PATH"
 RUN suiup install walrus@testnet-1.63.2 -y
 
 FROM ubuntu:24.04
-COPY --from=sui-builder /root/.local/bin/sui /usr/local/bin/sui
+COPY --from=walrus-builder /root/.local/bin/walrus /usr/local/bin/
+COPY --from=walrus-build /build/walrus /build/walrus

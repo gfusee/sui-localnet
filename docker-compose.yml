@@ -28,6 +28,18 @@ services:
     networks:
       - sui
 
+  walrus:
+    build:
+      context: ./walrus
+      dockerfile: Dockerfile
+      args:
+        SUI_LOCALNET_VERSION: ${SUI_LOCALNET_VERSION:-latest}
+    container_name: walrus
+    environment:
+      WALRUS_ADDRESS: ${WALRUS_ADDRESS}
+    networks:
+      - sui
+
 networks:
   sui:
     external: true
