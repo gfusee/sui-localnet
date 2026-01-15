@@ -24,7 +24,7 @@ sui client new-env --alias localnet --rpc $NODE_URL
 ./faucet.sh "$FAUCET_URL" "$(sui client active-address)"
 
 WALRUS_ADDRESS="${WALRUS_ADDRESS:-localhost}"
-echo "Using Walrus address: WALRUS_ADDRESS"
+echo "Using Walrus address: $WALRUS_ADDRESS"
 
-cd /build/walrus
-scripts/local-testbed.sh -n localnet -a $WALRUS_ADDRESS
+cd /walrus
+scripts/local-testbed.sh -n "http://localnet:9000;http://localnet:9123/v2/gas" -a $WALRUS_ADDRESS
