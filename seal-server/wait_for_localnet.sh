@@ -11,6 +11,9 @@ fi
 
 RPC_URL="$1"
 echo "[DEBUG] RPC_URL set to: $RPC_URL"
+RPC_BASE_URL=$(echo "$RPC_URL" | sed -E 's#(https?://[^/:]+).*#\1#')
+GAS_URL="${RPC_BASE_URL}:9123/v2/gas"
+echo "[DEBUG] GAS_URL set to: $GAS_URL"
 
 echo "Waiting for RPC endpoint at $RPC_URL to return a response with 'data' defined..."
 
@@ -52,5 +55,39 @@ while true; do
   fi
 done
 
-echo "[DEBUG] Exiting normally."
+echo "Waiting for gas endpoint at $GAS_URL to return a successful response..."
 
+i=0
+while true; do
+  i=$((i+1))
+  echo "[DEBUG] Gas loop iteration $i"
+
+  echo "[DEBUG] Running gas curl..."
+  GAS_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GAS_URL" \
+    -H "Content-Type: application/json" \
+    -d '{"FixedAmountRequest":{"recipient":"0x0000000000000000000000000000000000000000000000000000000000000002"}}' || echo "")
+
+  echo "[DEBUG] Gas curl exit code: $?"
+  echo "[DEBUG] Raw gas response: '$GAS_RESPONSE'"
+
+  if [ -z "$GAS_RESPONSE" ]; then
+    echo "⚠️  Cannot reach $GAS_URL yet. Retrying in 5 seconds..."
+    sleep 5
+    continue
+  fi
+
+  GAS_BODY=$(printf "%s" "$GAS_RESPONSE" | sed '$d')
+  GAS_CODE=$(printf "%s" "$GAS_RESPONSE" | tail -n 1)
+  echo "[DEBUG] Gas HTTP code: '$GAS_CODE'"
+
+  if [ "$GAS_CODE" = "200" ] || [ "$GAS_CODE" = "201" ]; then
+    echo "✅ Gas endpoint is ready. Response:"
+    echo "$GAS_BODY"
+    break
+  else
+    echo "⏳ Gas endpoint not ready (HTTP $GAS_CODE). Retrying in 5 seconds."
+    sleep 5
+  fi
+done
+
+echo "[DEBUG] Exiting normally."
