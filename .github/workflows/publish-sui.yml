@@ -127,7 +127,7 @@ jobs:
       - name: Build and push sui-localnet image (amd64)
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: localnet
           file: localnet/Dockerfile
           push: true
           platforms: ${{ env.PLATFORM }}
@@ -163,7 +163,7 @@ jobs:
       - name: Build and push sui-localnet image (arm64)
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: localnet
           file: localnet/Dockerfile
           push: true
           platforms: ${{ env.PLATFORM }}
