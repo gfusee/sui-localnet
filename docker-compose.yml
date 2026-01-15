@@ -5,7 +5,14 @@ services:
     build:
       context: ./localnet
       dockerfile: Dockerfile
+      args:
+        SUI_LOCALNET_VERSION: ${SUI_LOCALNET_VERSION:-latest}
     container_name: localnet
+    volumes:
+      - ${LOCALNET_CONFIG:-./localnet-config}:/home/user/localnet-config
+    environment:
+      WITH_GRAPHQL: ${WITH_GRAPHQL}
+      WITH_INDEXER: ${WITH_INDEXER}
     networks:
       - sui
 
@@ -13,6 +20,8 @@ services:
     build:
       context: ./seal-server
       dockerfile: Dockerfile
+      args:
+        SUI_LOCALNET_VERSION: ${SUI_LOCALNET_VERSION:-latest}
     container_name: seal
     environment:
       SEAL_SERVER_URL: ${SEAL_SERVER_URL}

@@ -1,13 +1,35 @@
+ARG SUI_LOCALNET_VERSION=latest
+
+FROM ghcr.io/gfusee/sui-localnet/sui-binary:${SUI_LOCALNET_VERSION} AS sui-binary
+
 FROM ubuntu:24.04 AS runner
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    postgresql-common \
+    sudo
+
+RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+
+RUN apt-get install postgresql-18 -y
+ENV PATH="$PATH:/usr/lib/postgresql/18/bin"
+
+RUN rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary from the builder
 COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
+COPY entrypoint.sh /entrypoint.sh
 
-ENTRYPOINT ["sui", "start", "--with-faucet", "--force-regenesis"]
+RUN chmod +x /entrypoint.sh
 
+# Workaround to eventually let sui start --with-indexer the possibility to run initdb, which requires the user to not be root
+RUN useradd -m user
+RUN echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN chown -R user:user /home/user
+USER user
+WORKDIR /home/user
+
+
+ENTRYPOINT ["/entrypoint.sh"]
