@@ -1,7 +1,6 @@
 publish_json() {
   local dir="$1"
-  echo "+ (cd $dir && sui client publish --json)"
-  ( cd "$dir" && sui client publish --json ) | awk '
+  ( cd "$dir" && sui client test-publish --build-env localnet --json ) | awk '
     BEGIN { found=0 }
     {
       if (!found) {
