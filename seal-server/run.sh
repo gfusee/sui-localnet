@@ -43,7 +43,21 @@ echo "Using Seal server URL: $SEAL_SERVER_URL"
 
 KEY_SERVER_JSON="$(sui client ptb \
   --move-call $SEAL_PACKAGE_ID::key_server::create_and_transfer_v1 '"FirstServer"' "\"$SEAL_SERVER_URL\"" 0 $(to_vector "$PUBLIC_KEY") \
-  --json
+  --json \
+  | awk '
+    BEGIN { found=0 }
+    {
+      if (!found) {
+        pos = index($0, "{")
+        if (pos) {
+          found=1
+          print substr($0, pos)
+        }
+        next
+      }
+      print
+    }
+  '
 )"
 
 KEY_SERVER_OBJECT_ID="$(
