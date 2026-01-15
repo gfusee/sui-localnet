@@ -1,0 +1,15 @@
+# Dockerfile.sui
+FROM ubuntu:24.04 AS sui-builder
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
+
+ENV PATH="/root/.local/bin:$PATH"
+
+RUN suiup install walrus@testnet-1.63.2 -y
+
+FROM ubuntu:24.04
+COPY --from=sui-builder /root/.local/bin/sui /usr/local/bin/sui
