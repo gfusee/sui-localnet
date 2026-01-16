@@ -266,8 +266,18 @@ import sys
 path, listen = sys.argv[1], sys.argv[2]
 with open(path, "r", encoding="utf-8") as f:
     text = f.read()
-text = re.sub(r"^(rest_api_address: )[^:]+(:[0-9]+)$", r"\1%s\2" % listen, text, flags=re.M)
-text = re.sub(r"^(metrics_address: )[^:]+(:[0-9]+)$", r"\1%s\2" % listen, text, flags=re.M)
+text = re.sub(
+    r"^(rest_api_address: )[^:]+(:[0-9]+)$",
+    r"\g<1>%s\g<2>" % listen,
+    text,
+    flags=re.M,
+)
+text = re.sub(
+    r"^(metrics_address: )[^:]+(:[0-9]+)$",
+    r"\g<1>%s\g<2>" % listen,
+    text,
+    flags=re.M,
+)
 with open(path, "w", encoding="utf-8") as f:
     f.write(text)
 PY
