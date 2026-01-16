@@ -1,34 +1,321 @@
-ARG SUI_LOCALNET_VERSION=latest
+#!/bin/bash
+# Copyright (c) Walrus Foundation
+# SPDX-License-Identifier: Apache-2.0
 
-FROM ghcr.io/gfusee/sui-localnet/sui-binary:${SUI_LOCALNET_VERSION} AS sui-binary
-FROM ghcr.io/gfusee/sui-localnet/walrus-binary:${SUI_LOCALNET_VERSION} AS walrus-binary
+set -euo pipefail
 
-FROM ubuntu:24.04 AS runner
+trap ctrl_c INT
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    ca-certificates \
-    curl \
-    jq \
-    git \
-    tmux \
-    python3 \
-    python3-pip \
-    python3-venv \
-    && rm -rf /var/lib/apt/lists/*
+join_by() {
+  delim_save="$1"
+  delim=""
+  shift
+  str=""
+  for arg in "$@"; do
+    str="$str$delim$arg"
+    delim="$delim_save"
+  done
+  echo "$str"
+}
 
-COPY --from=sui-binary /usr/local/bin/sui /usr/local/bin/sui
-COPY --from=walrus-binary /build/walrus /walrus
-COPY local-testbed.sh /walrus/scripts/local-testbed.sh
-COPY run.sh run.sh
-COPY wait_for_localnet.sh wait_for_localnet.sh
-COPY empty_sui_config.yaml /root/.sui/sui_config/client.yaml
-COPY faucet.sh faucet.sh
+kill_tmux_sessions() {
+  { tmux ls || true; } | { grep -o "dryrun-[a-z]*-\?\d*" || true; } | xargs -rn1 tmux kill-session -t
+}
 
-RUN chmod +x /walrus/scripts/local-testbed.sh
-RUN chmod +x run.sh
-RUN chmod +x wait_for_localnet.sh
-RUN chmod +x faucet.sh
+ctrl_c() {
+  kill_tmux_sessions
+  exit 0
+}
 
-ENTRYPOINT ["./run.sh", "http://localnet:9000"]
+kill_tmux_sessions
+
+usage() {
+  echo "Usage: $0 [OPTIONS]"
+  echo "OPTIONS:"
+  echo "  -A                    Start an aggregator daemon (default: false)"
+  echo "  -a <ip_address>       Specify the IP address that is used for all nodes (default: 127.0.0.1)"
+  echo "  -L <listen_address>   Specify the listen address for REST/metrics (default: same as -a)"
+  echo "  -b <database_url>     Specify a backup database url (ie: postgresql://postgres:postgres@localhost/postgres, default: none)"
+  echo "  -c <committee_size>   Number of storage nodes (default: 4)"
+  echo "  -d <duration>         Set the length of the epoch (in human readable format, e.g., '60s', default: 1h)"
+  echo "  -e                    Use existing config"
+  echo "  -f                    Tail the logs of the nodes (default: false)"
+  echo "  -g                    Enable garbage collection (blob info cleanup and data deletion)"
+  echo "  -h                    Print this usage message"
+  echo "  -l <rust_log>         Set RUST_LOG environment variable for all nodes (default: info)"
+  echo "  -n <network>          Sui network to generate configs for (default: devnet)"
+  echo "  -s <n_shards>         Number of shards (default: 10)"
+  echo "  -t                    Use testnet contracts"
+}
+
+run_node() {
+  cmd="RUST_LOG=$rust_log ./target/release/walrus-node run --config-path $working_dir/$1.yaml ${2:-} \
+    |& tee -a $working_dir/$1.log"
+  echo "Running within tmux: '$cmd'..."
+  tmux new -d -s "$1" "$cmd"
+}
+
+run_aggregator() {
+  bind_address=$1
+  metrics_address=$2
+  session_name="dryrun-aggregator"
+
+  cmd="RUST_LOG=$rust_log ./target/release/walrus aggregator \
+    --config $working_dir/client_config.yaml \
+    --bind-address $bind_address \
+    --metrics-address $metrics_address \
+    |& tee -a $working_dir/$session_name.log"
+  echo "Running aggregator within tmux: '$cmd'..."
+  tmux new -d -s "$session_name" "$cmd"
+}
+
+
+backup_database_url=
+committee_size=4 # Default value of 4 if no argument is provided
+epoch_duration=1h
+network=devnet
+rust_log=info # Default RUST_LOG level
+shards=10 # Default value of 4 if no argument is provided
+tail_logs=false
+use_existing_config=false
+contract_dir="./contracts"
+host_address="127.0.0.1"
+listen_address=
+enable_garbage_collection=false
+start_aggregator=false
+
+while getopts "Ab:c:d:efghl:n:s:tL:a:" arg; do
+  case "${arg}" in
+    A)
+      start_aggregator=true
+      ;;
+    f)
+      tail_logs=true
+      ;;
+    g)
+      enable_garbage_collection=true
+      ;;
+    n)
+      network=${OPTARG}
+      ;;
+    c)
+      committee_size=${OPTARG}
+      ;;
+    s)
+      shards=${OPTARG}
+      ;;
+    d)
+      epoch_duration=${OPTARG}
+      ;;
+    e)
+      use_existing_config=true
+      ;;
+    b)
+      backup_database_url=${OPTARG}
+      ;;
+    t)
+      contract_dir="./testnet-contracts"
+      ;;
+    a)
+      host_address=${OPTARG}
+      ;;
+    L)
+      listen_address=${OPTARG}
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    l)
+      rust_log=${OPTARG}
+      ;;
+    *)
+      usage
+      exit 1
+  esac
+done
+
+if ! [ "$committee_size" -gt 0 ] 2>/dev/null; then
+  echo "Invalid argument: $committee_size is not a valid positive integer."
+  usage
+  exit 1
+fi
+
+if ! [ "$shards" -ge "$committee_size" ] 2>/dev/null; then
+  echo "Invalid argument: $shards is not an integer greater than or equal to 'committee_size'."
+  usage
+  exit 1
+fi
+
+if [[ -z "$listen_address" ]]; then
+  listen_address="$host_address"
+fi
+
+if $use_existing_config; then
+  echo "$0: Using existing config"
+else
+  echo "$0: Using network: $network"
+  echo "$0: Using committee_size: $committee_size"
+  echo "$0: Using shards: $shards"
+  echo "$0: Using epoch_duration: $epoch_duration"
+  echo "$0: Using RUST_LOG: $rust_log"
+  echo "$0: Using backup_database_url: $backup_database_url"
+  echo "$0: Using garbage collection: $enable_garbage_collection"
+  echo "$0: Starting aggregator: $start_aggregator"
+fi
+
+
+if ! $use_existing_config; then
+  if [[ -n "$backup_database_url" ]]; then
+    echo "Reverting database migrations to ensure walrus-backup is starting fresh... [backup_database_url=$backup_database_url]"
+    diesel migration --database-url "$backup_database_url" revert --all ||:
+    diesel migration --database-url "$backup_database_url" run
+
+    # shellcheck disable=SC2207
+    schema_files=( $(git ls-files '**/schema.rs') )
+
+    # Cleanup the output of the diesel migration. (Annoying by-product of limited diesel support for licenses and formatting.)
+    pre-commit run licensesnip --files "${schema_files[@]}" 1>/dev/null 2>&1 ||:
+    pre-commit run cargo-fmt --files "${schema_files[@]}" 1>/dev/null 2>&1 ||:
+  fi
+fi
+
+
+features=( deploy )
+binaries=( walrus walrus-node walrus-deploy )
+if [[ -n "$backup_database_url" ]]; then
+  features+=( backup )
+  binaries+=( walrus-backup )
+fi
+
+echo "Skipped: Building $(join_by ', ' "${binaries[@]}") binaries..."
+echo "Starting tmux..."
+tmux has-session -t dev 2>/dev/null || tmux new-session -d -s dev
+
+# Set working directory
+working_dir="./working_dir"
+
+# Derive the ip addresses for the storage nodes
+ips=( )
+for node_count in $(seq 1 "$committee_size"); do
+  ips+=( "${host_address}" )
+done
+
+# Initialize cleanup to be empty
+cleanup=
+
+if ! $use_existing_config; then
+  # Cleanup
+  find contracts -name 'build' -type d -exec rm -rf {} +
+  rm -f $working_dir/dryrun-node-*.yaml
+  rm -f $working_dir/dryrun-node-*.log
+  cleanup="--cleanup-storage"
+
+  # Deploy system contract
+  echo Deploying system contract...
+  ./target/release/walrus-deploy deploy-system-contract \
+    --working-dir $working_dir \
+    --sui-network "$network" \
+    --n-shards "$shards" \
+    --host-addresses "${ips[@]}" \
+    --storage-price 5 \
+    --write-price 1 \
+    --epoch-duration "$epoch_duration" \
+    --contract-dir "$contract_dir" \
+    --with-wal-exchange
+
+  # Generate configs
+  generate_dry_run_args=( --working-dir "$working_dir" )
+  if [[ -n "$backup_database_url" ]]; then
+    generate_dry_run_args+=( --backup-database-url "$backup_database_url" )
+  fi
+  echo "Generating configuration [${generate_dry_run_args[*]}]..."
+  ./target/release/walrus-deploy generate-dry-run-configs "${generate_dry_run_args[@]}"
+
+  echo "
+event_processor_config:
+  adaptive_downloader_config:
+  max_workers: 2
+  initial_workers: 2" | \
+      tee -a $working_dir/dryrun-node-*[0-9].yaml >/dev/null
+
+  # Add garbage collection configuration if enabled
+  if $enable_garbage_collection; then
+    echo "
+db_config:
+  global:
+    experimental_use_optimistic_transaction_db: true
+garbage_collection:
+  enable_blob_info_cleanup: true
+  enable_data_deletion: true" | \
+        tee -a $working_dir/dryrun-node-*[0-9].yaml >/dev/null
+  fi
+fi
+
+if [[ "$listen_address" != "$host_address" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    py_exec=python3
+  else
+    py_exec=python
+  fi
+  for config in $working_dir/dryrun-node-*[0-9].yaml; do
+    "$py_exec" - <<'PY' "$config" "$listen_address"
+import re
+import sys
+
+path, listen = sys.argv[1], sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+text = re.sub(
+    r"^(rest_api_address: )[^:]+(:[0-9]+)$",
+    r"\g<1>%s\g<2>" % listen,
+    text,
+    flags=re.M,
+)
+text = re.sub(
+    r"^(metrics_address: )[^:]+(:[0-9]+)$",
+    r"\g<1>%s\g<2>" % listen,
+    text,
+    flags=re.M,
+)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
+  done
+fi
+
+node_count=0
+#
+# shellcheck disable=SC2045
+for config in $( ls $working_dir/dryrun-node-*[0-9].yaml ); do
+  node_name=$(basename -- "$config")
+  node_name="${node_name%.*}"
+  run_node "$node_name" "$cleanup"
+  ((++node_count))
+done
+
+echo "
+Spawned $node_count nodes in separate tmux sessions. (See \`tmux ls\` for the list of tmux sessions.)
+
+Client configuration stored at '$working_dir/client_config.yaml'.
+See README.md for further information on the Walrus client."
+
+# Start aggregator if requested
+if $start_aggregator; then
+  echo "Starting aggregator..."
+  run_aggregator "127.0.0.1:31415" "127.0.0.1:27182"
+  echo "Aggregator running at http://127.0.0.1:31415 (see 'tmux attach -t dryrun-aggregator')"
+fi
+
+if $tail_logs; then
+  log_files=("$working_dir"/dryrun-node-*.log)
+  if $start_aggregator; then
+    log_files+=("$working_dir"/dryrun-aggregator.log)
+  fi
+  tail -F "${log_files[@]}" | grep --line-buffered --color -Ei "ERROR|CRITICAL|^"
+else
+  echo "Press Ctrl+C to stop the nodes."
+  while (( 1 )); do
+    sleep 120
+  done
+fi
