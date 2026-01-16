@@ -34,6 +34,7 @@ usage() {
   echo "OPTIONS:"
   echo "  -A                    Start an aggregator daemon (default: false)"
   echo "  -a <ip_address>       Specify the IP address that is used for all nodes (default: 127.0.0.1)"
+  echo "  -L <listen_address>   Specify the listen address for REST/metrics (default: same as -a)"
   echo "  -b <database_url>     Specify a backup database url (ie: postgresql://postgres:postgres@localhost/postgres, default: none)"
   echo "  -c <committee_size>   Number of storage nodes (default: 4)"
   echo "  -d <duration>         Set the length of the epoch (in human readable format, e.g., '60s', default: 1h)"
@@ -79,10 +80,11 @@ tail_logs=false
 use_existing_config=false
 contract_dir="./contracts"
 host_address="127.0.0.1"
+listen_address=
 enable_garbage_collection=false
 start_aggregator=false
 
-while getopts "Ab:c:d:efghl:n:s:ta:" arg; do
+while getopts "Ab:c:d:efghl:n:s:tL:a:" arg; do
   case "${arg}" in
     A)
       start_aggregator=true
@@ -117,6 +119,9 @@ while getopts "Ab:c:d:efghl:n:s:ta:" arg; do
     a)
       host_address=${OPTARG}
       ;;
+    L)
+      listen_address=${OPTARG}
+      ;;
     h)
       usage
       exit 0
@@ -140,6 +145,10 @@ if ! [ "$shards" -ge "$committee_size" ] 2>/dev/null; then
   echo "Invalid argument: $shards is not an integer greater than or equal to 'committee_size'."
   usage
   exit 1
+fi
+
+if [[ -z "$listen_address" ]]; then
+  listen_address="$host_address"
 fi
 
 if $use_existing_config; then
@@ -241,6 +250,28 @@ garbage_collection:
   enable_data_deletion: true" | \
         tee -a $working_dir/dryrun-node-*[0-9].yaml >/dev/null
   fi
+fi
+
+if [[ "$listen_address" != "$host_address" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    py_exec=python3
+  else
+    py_exec=python
+  fi
+  for config in $working_dir/dryrun-node-*[0-9].yaml; do
+    "$py_exec" - <<'PY' "$config" "$listen_address"
+import re
+import sys
+
+path, listen = sys.argv[1], sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+text = re.sub(r"^(rest_api_address: )[^:]+(:[0-9]+)$", r"\1%s\2" % listen, text, flags=re.M)
+text = re.sub(r"^(metrics_address: )[^:]+(:[0-9]+)$", r"\1%s\2" % listen, text, flags=re.M)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
+  done
 fi
 
 node_count=0
