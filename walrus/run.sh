@@ -27,4 +27,4 @@ WALRUS_ADDRESS="${WALRUS_ADDRESS:-localhost}"
 echo "Using Walrus address: $WALRUS_ADDRESS"
 
 cd /walrus
-scripts/local-testbed.sh -n "http://localnet:9000;http://localnet:9123/v2/gas" -a $WALRUS_ADDRESS -s 200
+scripts/local-testbed.sh -n "http://localnet:9000;http://localnet:9123/v2/gas" -a $WALRUS_ADDRESS -s 200 -L 0.0.0.0
