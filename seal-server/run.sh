@@ -42,7 +42,7 @@ SEAL_SERVER_URL="${SEAL_SERVER_URL:-http://localhost:9005}"
 echo "Using Seal server URL: $SEAL_SERVER_URL"
 
 KEY_SERVER_JSON="$(sui client ptb \
-  --move-call $SEAL_PACKAGE_ID::key_server::create_and_transfer_v1 '"FirstServer"' "\"$SEAL_SERVER_URL\"" 0 $(to_vector "$PUBLIC_KEY") \
+  --move-call $SEAL_PACKAGE_ID::key_server::create_and_transfer_v2_independent_server '"FirstServer"' "\"$SEAL_SERVER_URL\"" 0 $(to_vector "$PUBLIC_KEY") \
   --json \
   | awk '
     BEGIN { found=0 }

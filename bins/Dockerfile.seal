@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-RUN git clone https://github.com/gfusee/seal.git
+RUN git clone https://github.com/MystenLabs/seal.git
 WORKDIR /build/seal
-RUN git checkout fix/no_move_bindings
+RUN git checkout efbabf4255ca3a783921a6e68935a3a36cf2505b
 
 # Build seal-cli and key-server
 RUN cargo build -p seal-cli --release
