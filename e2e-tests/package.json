@@ -1,0 +1,17 @@
+{
+  "name": "seal-e2e-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:independent": "vitest run src/independent.test.ts",
+    "test:committee": "vitest run src/committee.test.ts"
+  },
+  "devDependencies": {
+    "@mysten/seal": "1.1.1",
+    "@mysten/sui": "2.9.1",
+    "typescript": "^5",
+    "vitest": "^3",
+    "@types/node": "^22"
+  }
+}

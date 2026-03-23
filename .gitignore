@@ -1,3 +1,5 @@
 .idea
 *.iml
 .env
+bins/**/target
+node_modules

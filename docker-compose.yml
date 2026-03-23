@@ -25,6 +25,9 @@ services:
     container_name: seal
     environment:
       SEAL_SERVER_URL: ${SEAL_SERVER_URL}
+      SEAL_MODE: ${SEAL_MODE:-independent}
+      SEAL_COMMITTEE_SIZE: ${SEAL_COMMITTEE_SIZE:-3}
+      SEAL_COMMITTEE_THRESHOLD: ${SEAL_COMMITTEE_THRESHOLD:-2}
     networks:
       - sui
 

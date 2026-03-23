@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+to_vector() {
+    local hex=${1#0x}
+    local -a parts=()
+    [[ $(( ${#hex} % 2 )) -ne 0 ]] && hex="0$hex"
+    for ((i=0; i<${#hex}; i+=2)); do
+        parts+=("0x${hex:i:2}")
+    done
+    echo "vector[${parts[*]}]" | sed 's/ /, /g'
+}
+
+NODE_URL="${NODE_URL:-http://localnet:9000}"
+echo "Using node URL: $NODE_URL"
+
+FAUCET_URL="${FAUCET_URL:-http://localnet:9123}"
+echo "Using faucet URL: $FAUCET_URL"
+
+./wait_for_localnet.sh $NODE_URL
+
+sui client new-address ed25519
+sui client new-env --alias localnet --rpc $NODE_URL
+./faucet.sh "$FAUCET_URL" "$(sui client active-address)"
+
+SEAL_PACKAGE_ID="$(./deploy_seal.sh)"
+
+echo "Seal package id: $SEAL_PACKAGE_ID"
+
+# Generate keys
+OUTPUT=$(seal-cli genkey)
+
+# Print the full output
+echo "$OUTPUT"
+
+# Extract the Master key value
+MASTER_KEY=$(echo "$OUTPUT" | grep -oP '(?<=Master key:\s)0x[0-9a-fA-F]+')
+PUBLIC_KEY=$(echo "$OUTPUT" | grep -oP '(?<=Public key:\s)0x[0-9a-fA-F]+')
+
+# Use SEAL_SERVER_URL if defined, otherwise default to localhost:9005
+SEAL_SERVER_URL="${SEAL_SERVER_URL:-http://localhost:9005}"
+echo "Using Seal server URL: $SEAL_SERVER_URL"
+
+KEY_SERVER_JSON="$(sui client ptb \
+  --move-call $SEAL_PACKAGE_ID::key_server::create_and_transfer_v2_independent_server '"FirstServer"' "\"$SEAL_SERVER_URL\"" 0 $(to_vector "$PUBLIC_KEY") \
+  --json \
+  | awk '
+    BEGIN { found=0 }
+    {
+      if (!found) {
+        pos = index($0, "{")
+        if (pos) {
+          found=1
+          print substr($0, pos)
+        }
+        next
+      }
+      print
+    }
+  '
+)"
+
+KEY_SERVER_OBJECT_ID="$(
+  jq -r '.objectChanges[]
+         | select(.type=="created" and (.objectType | endswith("::key_server::KeyServer")))
+         | .objectId' \
+    <<< "$KEY_SERVER_JSON"
+)"
+
+echo "Seal package ID: $SEAL_PACKAGE_ID"
+echo "Key server ID: $KEY_SERVER_OBJECT_ID"
+echo "Master key: $MASTER_KEY"
+
+# Ensure the /shared directory exists
+mkdir -p /shared
+
+# Write the variables into /shared/seal.json
+cat <<EOF > /shared/seal.json
+{
+  "seal_package_id": "$SEAL_PACKAGE_ID",
+  "key_server_object_id": "$KEY_SERVER_OBJECT_ID",
+  "public_key": "$PUBLIC_KEY"
+}
+EOF
+
+# Write key-server config file
+mkdir -p /config
+cat <<YAML > /config/key-server.yaml
+network: !Devnet
+  seal_package: '${SEAL_PACKAGE_ID}'
+node_url: '${NODE_URL}'
+server_mode: !Open
+  key_server_object_id: '${KEY_SERVER_OBJECT_ID}'
+YAML
+
+# Run the key-server command
+CONFIG_PATH=/config/key-server.yaml MASTER_KEY="$MASTER_KEY" key-server
