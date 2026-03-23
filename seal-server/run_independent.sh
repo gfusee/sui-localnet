@@ -88,10 +88,9 @@ mkdir -p /config
 cat <<YAML > /config/key-server.yaml
 network: !Devnet
   seal_package: '${SEAL_PACKAGE_ID}'
-node_url: '${NODE_URL}'
 server_mode: !Open
   key_server_object_id: '${KEY_SERVER_OBJECT_ID}'
 YAML
 
-# Run the key-server command
-CONFIG_PATH=/config/key-server.yaml MASTER_KEY="$MASTER_KEY" key-server
+# Run the key-server command (NODE_URL passed as env var so users can override via docker-compose)
+CONFIG_PATH=/config/key-server.yaml MASTER_KEY="$MASTER_KEY" NODE_URL="$NODE_URL" key-server

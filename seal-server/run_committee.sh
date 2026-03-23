@@ -256,7 +256,6 @@ for ((i=0; i<COMMITTEE_SIZE; i++)); do
     cat <<YAML > /config/key-server-${i}.yaml
 network: !Devnet
   seal_package: '${SEAL_PKG_ID}'
-node_url: '${NODE_URL}'
 server_mode: !Committee
   member_address: '${MEMBER_ADDRS[$i]}'
   key_server_obj_id: '${KEY_SERVER_OBJECT_ID}'
@@ -268,6 +267,7 @@ YAML
     CONFIG_PATH="/config/key-server-${i}.yaml" \
       MASTER_SHARE_V0="${MASTER_SHARES[$i]}" \
       PORT="$MEMBER_PORT" \
+      NODE_URL="$NODE_URL" \
       key-server &
 
     sleep 1
