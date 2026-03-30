@@ -45,6 +45,7 @@ usage() {
   echo "  -l <rust_log>         Set RUST_LOG environment variable for all nodes (default: info)"
   echo "  -n <network>          Sui network to generate configs for (default: devnet)"
   echo "  -s <n_shards>         Number of shards (default: 10)"
+  echo "  -R <base_port>        Rewrite REST API ports to sequential values starting from base_port"
   echo "  -t                    Use testnet contracts"
 }
 
@@ -83,8 +84,9 @@ host_address="127.0.0.1"
 listen_address=
 enable_garbage_collection=false
 start_aggregator=false
+rest_api_base_port=
 
-while getopts "Ab:c:d:efghl:n:s:tL:a:" arg; do
+while getopts "Ab:c:d:efghl:n:s:tL:a:R:" arg; do
   case "${arg}" in
     A)
       start_aggregator=true
@@ -121,6 +123,9 @@ while getopts "Ab:c:d:efghl:n:s:tL:a:" arg; do
       ;;
     L)
       listen_address=${OPTARG}
+      ;;
+    R)
+      rest_api_base_port=${OPTARG}
       ;;
     h)
       usage
@@ -252,12 +257,35 @@ garbage_collection:
   fi
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  py_exec=python3
+else
+  py_exec=python
+fi
+
+if [[ -n "$rest_api_base_port" ]]; then
+  port_offset=0
+  for config in $(ls $working_dir/dryrun-node-*[0-9].yaml); do
+    target_port=$((rest_api_base_port + port_offset))
+    "$py_exec" - <<'PY' "$config" "$target_port"
+import re, sys
+path, port = sys.argv[1], sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+text = re.sub(
+    r"^(rest_api_address: .+:)[0-9]+('?)$",
+    r"\g<1>%s\2" % port,
+    text,
+    flags=re.M,
+)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
+    ((++port_offset))
+  done
+fi
+
 if [[ "$listen_address" != "$host_address" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    py_exec=python3
-  else
-    py_exec=python
-  fi
   for config in $working_dir/dryrun-node-*[0-9].yaml; do
     "$py_exec" - <<'PY' "$config" "$listen_address"
 import re
