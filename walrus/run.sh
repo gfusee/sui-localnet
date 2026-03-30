@@ -26,5 +26,11 @@ sui client new-env --alias localnet --rpc $NODE_URL
 WALRUS_ADDRESS="${WALRUS_ADDRESS:-localhost}"
 echo "Using Walrus address: $WALRUS_ADDRESS"
 
+WALRUS_REST_API_BASE_PORT="${WALRUS_REST_API_BASE_PORT:-}"
+
 cd /walrus
-scripts/local-testbed.sh -n "http://localnet:9000;http://localnet:9123/v2/gas" -a $WALRUS_ADDRESS -s 200 -L 0.0.0.0
+CMD=(scripts/local-testbed.sh -n "http://localnet:9000;http://localnet:9123/v2/gas" -a $WALRUS_ADDRESS -s 200 -L 0.0.0.0)
+if [[ -n "$WALRUS_REST_API_BASE_PORT" ]]; then
+  CMD+=(-R "$WALRUS_REST_API_BASE_PORT")
+fi
+"${CMD[@]}"

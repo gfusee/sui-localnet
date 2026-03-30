@@ -2,13 +2,16 @@ import { execSync } from 'child_process';
 
 const LOCALNET_CONTAINER = 'localnet';
 const SEAL_CONTAINER = 'seal';
-const CONTAINERS = [SEAL_CONTAINER, LOCALNET_CONTAINER];
+const WALRUS_CONTAINER = 'walrus';
+const CONTAINERS = [SEAL_CONTAINER, WALRUS_CONTAINER, LOCALNET_CONTAINER];
 
 const LOCALNET_TAG = process.env.LOCALNET_TAG ?? 'local';
 const SEAL_TAG = process.env.SEAL_TAG ?? 'local';
+const WALRUS_TAG = process.env.WALRUS_TAG ?? 'local';
 
 const LOCALNET_IMAGE = `ghcr.io/gfusee/sui-localnet/sui-localnet:${LOCALNET_TAG}`;
 const SEAL_IMAGE = `ghcr.io/gfusee/sui-localnet/seal-server:${SEAL_TAG}`;
+const WALRUS_IMAGE = `ghcr.io/gfusee/sui-localnet/walrus:${WALRUS_TAG}`;
 
 const RPC_URL = 'http://localhost:9000';
 const FAUCET_URL = 'http://localhost:9123';
@@ -166,4 +169,57 @@ export async function startSeal(
 	);
 
 	return config;
+}
+
+export async function startWalrus(opts: {
+	restApiBasePort?: number;
+}): Promise<void> {
+	const envFlags: string[] = ['-e WALRUS_ADDRESS=localhost'];
+	if (opts.restApiBasePort) {
+		envFlags.push(`-e WALRUS_REST_API_BASE_PORT=${opts.restApiBasePort}`);
+	}
+
+	const portFlags = opts.restApiBasePort
+		? `-p ${opts.restApiBasePort}-${opts.restApiBasePort + 3}:${opts.restApiBasePort}-${opts.restApiBasePort + 3}`
+		: '';
+
+	execSync(
+		[
+			'docker run -d',
+			`--name ${WALRUS_CONTAINER}`,
+			'--network sui',
+			portFlags,
+			...envFlags,
+			WALRUS_IMAGE,
+		]
+			.filter(Boolean)
+			.join(' '),
+		{ stdio: 'inherit' },
+	);
+
+	// Wait for walrus node configs to be generated.
+	// dryrun-node-0.yaml is created after client_config.yaml and after the port rewrite,
+	// so we wait for a node config as the definitive readiness signal.
+	await waitFor(
+		() => {
+			try {
+				execSync(
+					`docker exec ${WALRUS_CONTAINER} test -f /walrus/working_dir/dryrun-node-0.log`,
+					{ stdio: 'pipe', timeout: 5000 },
+				);
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		'walrus config generation',
+		240_000,
+	);
+}
+
+export function readWalrusFile(path: string): string {
+	return execSync(`docker exec ${WALRUS_CONTAINER} cat ${path}`, {
+		stdio: 'pipe',
+		timeout: 5000,
+	}).toString();
 }

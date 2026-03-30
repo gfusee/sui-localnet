@@ -1,4 +1,4 @@
-# Dockerfile.sui
+# Dockerfile.walrus
 FROM rust:1.82 AS walrus-builder
 
 RUN apt-get update && apt-get install -y \
@@ -10,13 +10,18 @@ RUN git clone https://github.com/MystenLabs/walrus.git
 WORKDIR /build/walrus
 RUN git checkout 9458057a23d89eaf9eccfa7b81bad93595d76988
 
-# Build walrus bins
-RUN cargo build \
-    --release \
-    --bin walrus \
-    --bin walrus-node \
-    --bin walrus-deploy \
-    --features deploy
+# Build walrus bins — cache cargo registry + target dir across builds
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/walrus/target \
+    cargo build \
+        --release \
+        --bin walrus \
+        --bin walrus-node \
+        --bin walrus-deploy \
+        --features deploy \
+    && mkdir -p /out \
+    && cp target/release/walrus target/release/walrus-node target/release/walrus-deploy /out/
 
 RUN curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
 
@@ -24,17 +29,9 @@ ENV PATH="/root/.local/bin:$PATH"
 
 RUN suiup install walrus@testnet-1.39.1 -y
 
-RUN mkdir /tmp-bin
-
-RUN cp /build/walrus/target/release/walrus /tmp-bin/walrus
-RUN cp /build/walrus/target/release/walrus-node /tmp-bin/walrus-node
-RUN cp /build/walrus/target/release/walrus-deploy /tmp-bin/walrus-deploy
-
-RUN rm -rf target && mkdir -p /build/walrus/target/release
-
-RUN cp /tmp-bin/walrus /build/walrus/target/release/walrus
-RUN cp /tmp-bin/walrus-node /build/walrus/target/release/walrus-node
-RUN cp /tmp-bin/walrus-deploy /build/walrus/target/release/walrus-deploy
+# Reconstruct the expected layout (walrus/Dockerfile expects /build/walrus with binaries in target/release/)
+RUN rm -rf target && mkdir -p target/release \
+    && cp /out/walrus /out/walrus-node /out/walrus-deploy target/release/
 
 FROM ubuntu:24.04
 COPY --from=walrus-builder /root/.local/bin/walrus /usr/local/bin/
