@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 RUN git clone https://github.com/MystenLabs/walrus.git
 WORKDIR /build/walrus
+RUN git checkout 9458057a23d89eaf9eccfa7b81bad93595d76988
 
 # Build walrus bins
 RUN cargo build \
