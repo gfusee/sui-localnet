@@ -218,21 +218,29 @@ if ! $use_existing_config; then
 
   # Deploy system contract
   echo Deploying system contract...
-  ./target/release/walrus-deploy deploy-system-contract \
-    --working-dir $working_dir \
-    --sui-network "$network" \
-    --n-shards "$shards" \
-    --host-addresses "${ips[@]}" \
-    --storage-price 5 \
-    --write-price 1 \
-    --epoch-duration "$epoch_duration" \
-    --contract-dir "$contract_dir" \
+  deploy_args=(
+    --working-dir "$working_dir"
+    --sui-network "$network"
+    --n-shards "$shards"
+    --host-addresses "${ips[@]}"
+    --storage-price 5
+    --write-price 1
+    --epoch-duration "$epoch_duration"
+    --contract-dir "$contract_dir"
     --with-wal-exchange
+  )
+  if [[ -n "$rest_api_base_port" ]]; then
+    deploy_args+=(--rest-api-port "$((rest_api_base_port - committee_size))")
+  fi
+  ./target/release/walrus-deploy deploy-system-contract "${deploy_args[@]}"
 
   # Generate configs
   generate_dry_run_args=( --working-dir "$working_dir" )
   if [[ -n "$backup_database_url" ]]; then
     generate_dry_run_args+=( --backup-database-url "$backup_database_url" )
+  fi
+  if [[ -n "$rest_api_base_port" ]]; then
+    generate_dry_run_args+=(--metrics-port "$((rest_api_base_port - 2 * committee_size))")
   fi
   echo "Generating configuration [${generate_dry_run_args[*]}]..."
   ./target/release/walrus-deploy generate-dry-run-configs "${generate_dry_run_args[@]}"
@@ -261,28 +269,6 @@ if command -v python3 >/dev/null 2>&1; then
   py_exec=python3
 else
   py_exec=python
-fi
-
-if [[ -n "$rest_api_base_port" ]]; then
-  port_offset=0
-  for config in $(ls $working_dir/dryrun-node-*[0-9].yaml); do
-    target_port=$((rest_api_base_port + port_offset))
-    "$py_exec" - <<'PY' "$config" "$target_port"
-import re, sys
-path, port = sys.argv[1], sys.argv[2]
-with open(path, "r", encoding="utf-8") as f:
-    text = f.read()
-text = re.sub(
-    r"^(rest_api_address: .+:)[0-9]+('?)$",
-    r"\g<1>%s\2" % port,
-    text,
-    flags=re.M,
-)
-with open(path, "w", encoding="utf-8") as f:
-    f.write(text)
-PY
-    ((++port_offset))
-  done
 fi
 
 if [[ "$listen_address" != "$host_address" ]]; then
